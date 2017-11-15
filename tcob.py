@@ -26,29 +26,32 @@ from mobject.vectorized_mobject import *
 ## To watch one of these scenes, run the following:
 ## python extract_scenes.py -p file_name <SceneName>
 
+def f(p):
+    x, y, z = p
+    #return ((x + y + 1) / 2.0, y, 0)
+    return (x / 2.0, (y - 1) / 2.0, 0)
+
+# x = 2*x'
+# y = 2*y' + 1
+#
+#
+# [[2 0]    [0
+#  [0 2]] +  1]
+# y - 1
+
 def tcob(t):
-    return ApplyPointwiseFunction(
-        lambda (x, y, z) : (2*x - y - 1, y, 0),
-        t
-    )
+    return ApplyPointwiseFunction(f, t)
 
 def pt_tcob(x, y):
-    return Transform(
-        Dot((x, y, 0), color=GREEN, radius=0.1),
-        Dot((2*x - y - 1, y, 0), color=GREEN, radius=0.1),
-        run_time=DEFAULT_POINTWISE_FUNCTION_RUN_TIME,
-    )
+    return Transform(pt(x, y), f_pt(x, y), run_time=DEFAULT_POINTWISE_FUNCTION_RUN_TIME)
 
 def pt(x, y):
     return Dot((x, y, 0), color=GREEN, radius=0.1)
 
-def inv_tcob(t):
-    return ApplyPointwiseFunction(
-        lambda (x, y, z) : ((x + y + 1) / 2, y, 0),
-        t
-    )
+def f_pt(x, y):
+    return Dot(f((x, y, 0)), color=GREEN, radius=0.1)
 
-class TCOB(Scene):
+class WholeGrid(Scene):
     def construct(self):
         square = Square()
         self.add(NumberPlane(
@@ -69,7 +72,7 @@ class TCOB(Scene):
         self.play(*points_transform)
         self.dither(1)
 
-class TCOB2(Scene):
+class TwoTrapezoids(Scene):
     def construct(self):
         square = Square()
         self.add(NumberPlane(
@@ -91,26 +94,22 @@ class TCOB2(Scene):
         )
         points = []
         points_transform = []
-        for x, y in [(0, 3),
-                     (1, 2), (1, 3),
-                     (2, 1), (2, 2), (2, 3),
-                     (3, 1), (3, 2), (3, 3),
-                     (4, 1), (4, 2), (4, 3),
-                     (5, 3)]:
-            points.append(pt(x, y))
-            points_transform.append(pt_tcob(x, y))
-        for x, y in [(-4, -3),
-                     (-3, -3), (-3, -2),
-                     (-2, -3), (-2, -2), (-2, -1),
-                     (-1, -3), (-1, -2), (-1, -1),
-                     (0, -3), (0, -2), (0, -1),
-                     (1, -3), (1, -2), (1, -1),
-                     (2, -3)]:
-            points.append(pt(x, y))
-            points_transform.append(pt_tcob(x, y))
+        missed = []
+        for x, y in ([(0, 3), (1, 2), (2, 1), (2, 3), (3, 2), (4, 1), (4, 3)] +
+                     [(-4, -3), (-3, -2), (-2, -3), (-2, -1), (-1, -2), (0, -3), (0, -1), (1, -2), (2, -3)]):
+            p = pt(x, y)
+            fp = f_pt(x, y)
+            points.append(p)
+            if x % 2 != 0:
+                missed.append(fp)
+            points_transform.append(Transform(p, fp, run_time=DEFAULT_POINTWISE_FUNCTION_RUN_TIME))
 
         self.add(t1, t2, *points)
-        self.dither(1)
+        self.dither(2)
         self.remove(t1, t2, *points)
-        self.play(tcob(t1), tcob(t2), *points_transform)
+        self.play(tcob(t1), tcob(t2), *points_transform, replace_mobject_with_target_in_scene=True)
         self.dither(1)
+
+        self.remove(VGroup(*missed))
+        self.play(FadeOut(VGroup(*missed)))
+        self.dither(2)

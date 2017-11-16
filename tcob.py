@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import math
+
 from helpers import *
 
 from mobject.tex_mobject import TexMobject
@@ -53,7 +55,6 @@ def f_pt(x, y):
 
 class WholeGrid(Scene):
     def construct(self):
-        square = Square()
         self.add(NumberPlane(
             color=DARK_GREY,
             axes_color=GREY,
@@ -74,7 +75,6 @@ class WholeGrid(Scene):
 
 class TwoTrapezoids(Scene):
     def construct(self):
-        square = Square()
         self.add(NumberPlane(
             color=DARK_GREY,
             axes_color=GREY,
@@ -113,3 +113,224 @@ class TwoTrapezoids(Scene):
         self.remove(VGroup(*missed))
         self.play(FadeOut(VGroup(*missed)))
         self.dither(2)
+
+def ceil(x):
+    return int(math.ceil(x))
+
+def floor(x):
+    return int(math.floor(x))
+
+class TrapezoidInequality(Scene):
+    def construct(self):
+        factor = 5.0
+        self.add(NumberPlane(
+            color=DARK_GREY,
+            axes_color=GREY,
+            secondary_line_ratio=factor-1
+        ))
+        def scale(n):
+            return n / factor
+        upper_y = 10
+        lower_y = 3
+        def upper_x(y):
+            return 3 * y / 2.0
+        def lower_x(y):
+            return y / 2.0
+
+        intro = TextMobject("""
+            Consider the trapezoid: \\\\
+            $3 \leq y \leq 10$ \\\\
+            $y \leq 2x \leq 3y$
+        """)
+        intro.to_corner(UP+LEFT)
+        intro.add_background_rectangle()
+        self.play(Write(intro))
+        self.dither(2)
+
+        def fix_xy(p):
+            x, y = p
+            return (scale(x), scale(y), 0)
+        def poly(*points, **kwargs):
+            return Polygon(*map(fix_xy, points), **kwargs)
+
+        p1 = (upper_x(lower_y), lower_y)
+        p2 = (lower_x(lower_y), lower_y)
+        p3 = (lower_x(upper_y), upper_y)
+        p4 = (upper_x(upper_y), upper_y)
+        trap = poly(p1, p2, p3, p4)
+        self.play(Write(trap))
+        self.dither(2)
+
+        points = []
+        for y in range(lower_y, upper_y + 1):
+            for x in range(ceil(lower_x(y)), floor(upper_x(y)) + 1):
+                points.append((x, y))
+
+        A = [[1, 1], [1, 2]]
+        A_inv = np.linalg.inv(A)
+
+        def f(p):
+            x, y, _ = p
+            return (A_inv[0][0]*x + A_inv[0][1]*y, A_inv[1][0]*x + A_inv[1][1]*y, 0)
+
+        def dot(pt, **kwargs):
+            x, y = pt
+            return Dot((scale(x), scale(y), 0), radius=0.04, **kwargs)
+
+        def f_dot(pt):
+            x, y = pt
+            f_x, f_y, _ = f((x, y, 0))
+            return Dot((scale(f_x), scale(f_y), 0), radius=0.04)
+
+        def move(vm1, vm2):
+            return Transform(vm1, vm2, run_time=DEFAULT_POINTWISE_FUNCTION_RUN_TIME)
+
+        dots = [dot(pt) for pt in points]
+        self.play(*map(Write, dots))
+        self.dither(2)
+        self.remove(intro)
+
+        step2 = TextMobject("""
+            Construct a transform relative to the lower bound on $x'$
+        """)
+        step2.to_edge(LEFT).to_edge(UP)
+        step2.add_background_rectangle()
+        self.play(Write(step2))
+        self.dither(2)
+        self.remove(step2)
+
+        equations = TexMobject("""
+            x &= x' + y' \\\\
+            y &= x' + 2y' \\\\
+            \\\\
+            x' &= 2x - y  \\\\
+            y' &= -x + y  \\\\
+        """)
+        equations.to_edge(LEFT).to_edge(UP)
+        equations.add_background_rectangle()
+        self.play(Write(equations))
+        self.dither(2)
+
+        dot_moves = [move(dt, f_dot(pt)) for dt, pt in zip(dots, points)]
+        self.play(ApplyPointwiseFunction(f, trap), *dot_moves)
+
+        self.dither(2)
+
+
+        def tex(text):
+            obj = TextMobject(text)
+            obj.to_edge(DOWN)
+            obj.add_background_rectangle()
+            return obj
+
+
+        obj = tex("""
+            Original lower bound on $x$ is now {\em constant} lower bound on $x'$\\\\
+            $y \leq 2x$ \\\\
+            $x' + 2y' \leq 2x' + 2y'$ \\\\
+            $0 \leq x'$
+        """)
+        self.play(Write(obj))
+        self.dither()
+        line = Line(f(fix_xy(p2)), f(fix_xy(p3)), color=GREEN)
+        self.play(Indicate(line))
+        self.remove(line)
+        self.dither(4)
+        self.remove(obj)
+
+        obj = tex("""
+            Original upper bound on $y$ is now upper bound on $x'$\\\\
+            $y \leq 10$ \\\\
+            $x' + 2y' \leq 10$ \\\\
+            $x' \leq -2y' + 10$
+        """)
+        self.play(Write(obj))
+        self.dither()
+        line = Line(f(fix_xy(p3)), f(fix_xy(p4)), color=GREEN)
+        self.play(Indicate(line))
+        self.remove(line)
+        self.dither(4)
+        self.remove(obj)
+
+        obj = tex("""
+            Original upper bound on $x$ is now lower bound on $x'$\\\\
+            $2x \leq 3y$ \\\\
+            $2x' + 2y' \leq 3x' + 6y'$ \\\\
+            $-4y' \leq x'$
+        """)
+        self.play(Write(obj))
+        self.dither()
+        line = Line(f(fix_xy(p4)), f(fix_xy(p1)), color=GREEN)
+        self.play(Indicate(line))
+        self.remove(line)
+        self.dither(4)
+        self.remove(obj)
+
+        # Original lower bound on y is now lower bound on x'
+        obj = tex("""
+            Original upper bound on $y$ is now lower bound on $x'$\\\\
+            $3 \leq y$ \\\\
+            $3 \leq x' + 2y'$ \\\\
+            $-2y' + 3 \leq x'$
+        """)
+        self.play(Write(obj))
+        self.dither()
+        line = Line(f(fix_xy(p1)), f(fix_xy(p2)), color=GREEN)
+        self.play(Indicate(line))
+        self.remove(line)
+        self.dither(4)
+        self.remove(obj)
+
+        self.dither()
+
+        obj = tex("""
+            Reduction then depends on the original solution $v$\\\\
+            Here are the cases
+        """)
+        self.play(Write(obj))
+        self.dither(2)
+
+        color = DARK_BLUE
+        v = dot((1, 3), color=color)
+        self.play(FocusOn(v))
+        self.add(v)
+        self.dither()
+        s1 = (0, 5)
+        s2 = (0, 1.5)
+        s3 = (7, 1.5)
+        sub = poly(s1, s2, s3, color=color)
+        self.play(Write(sub))
+        self.dither(2)
+        self.remove(v)
+        self.remove(sub)
+
+        v = dot((6, 0), color=color)
+        self.play(FocusOn(v))
+        self.add(v)
+        self.dither()
+        s1 = (0, 1.5)
+        s2 = (7, 1.5)
+        s3 = (13, -1.5)
+        s4 = (6, -1.5)
+        sub = poly(s1, s2, s3, s4, color=color)
+        self.play(Write(sub))
+        self.dither(2)
+        self.remove(v)
+        self.remove(sub)
+
+        v = dot((14, -3), color=color)
+        self.play(FocusOn(v))
+        self.add(v)
+        self.dither()
+        s1 = (6, -1.5)
+        s2 = (13, -1.5)
+        s3 = (20, -5)
+        sub = poly(s1, s2, s3, color=color)
+        self.play(Write(sub))
+        self.dither(2)
+        self.remove(v)
+        self.remove(sub)
+
+        self.remove(obj)
+        self.dither(5)
+        

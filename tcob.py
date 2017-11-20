@@ -18,8 +18,8 @@ from topics.characters import *
 from topics.functions import *
 from topics.number_line import *
 from topics.combinatorics import *
+from topics.vector_space_scene import LinearTransformationScene
 from scene import Scene
-from scene.zoomed_scene import ZoomedScene
 from camera import Camera
 from mobject.svg_mobject import *
 from mobject.tex_mobject import *
@@ -336,7 +336,7 @@ class TrapezoidInequality(Scene):
         self.dither(5)
         
 
-class ThinInequality(ZoomedScene):
+class ThinInequality(Scene):
     def construct(self):
         factor = 5.0
         self.add(NumberPlane(
@@ -459,3 +459,95 @@ class ThinInequality(ZoomedScene):
 
         self.dither(5)
         
+class ThinInequalityMulti(Scene):
+    def construct(self):
+        def example(r, s):
+            factor = 5.0
+            self.add(NumberPlane(
+                color=DARK_GREY,
+                axes_color=GREY,
+                secondary_line_ratio=factor-1
+            ))
+            def scale(n):
+                return n / factor
+            upper_y = 12
+            lower_y = 0
+            def upper_x(y):
+                return (y + 3) / 3.0
+            def lower_x(y):
+                return 2 * y / 5.0
+
+            def fix_xy(p):
+                x, y = p
+                return (scale(x), scale(y), 0)
+            def poly(*points, **kwargs):
+                return Polygon(*map(fix_xy, points), **kwargs)
+
+            p1 = (upper_x(lower_y), lower_y)
+            p2 = (lower_x(lower_y), lower_y)
+            p3 = (lower_x(upper_y), upper_y)
+            p4 = (upper_x(upper_y), upper_y)
+            trap = poly(p1, p2, p3, p4)
+            self.add(trap)
+
+            points = []
+            for y in range(lower_y, upper_y + 1):
+                for x in range(ceil(lower_x(y)), floor(upper_x(y)) + 1):
+                    points.append((x, y))
+
+            A = [[r, 2],
+                 [s, 5]]
+            A_inv = np.linalg.inv(A)
+
+            tex = TexMobject("""
+                M &= \\left(\\begin{{matrix}} {0} & {1} \\\\ {2} & {3} \\end{{matrix}}\\right)
+            """.format(A[0][0], A[0][1], A[1][0], A[1][1]))
+            tex.to_corner(UP+LEFT)
+            tex.add_background_rectangle()
+            self.add(tex)
+
+            def f(p):
+                x, y, _ = p
+                return (A_inv[0][0]*x + A_inv[0][1]*y, A_inv[1][0]*x + A_inv[1][1]*y, 0)
+
+            def dot(pt, **kwargs):
+                x, y = pt
+                return Dot((scale(x), scale(y), 0), radius=0.04, **kwargs)
+
+            def f_dot(pt):
+                x, y = pt
+                f_x, f_y, _ = f((x, y, 0))
+                return Dot((scale(f_x), scale(f_y), 0), radius=0.04)
+
+            def move(vm1, vm2):
+                return Transform(vm1, vm2, run_time=DEFAULT_POINTWISE_FUNCTION_RUN_TIME)
+
+            dots = [dot(pt) for pt in points]
+            self.add(*dots)
+
+            self.dither(1)
+            dot_moves = [move(dt, f_dot(pt)) for dt, pt in zip(dots, points)]
+            self.play(ApplyPointwiseFunction(f, trap), *dot_moves)
+
+            self.dither(1)
+
+            self.remove(tex)
+            for mob in self.get_mobjects():
+                mob.target = mob.copy().scale(2)
+            self.play(*[
+                Transform(mob, mob.target)
+                for mob in self.get_mobjects()
+            ])
+            self.add(tex)
+            self.dither(3)
+            self.remove(*self.get_mobjects())
+
+        # example(r, s) must have 5r - 2s = 1
+        example(1, 2)
+        example(3, 7)
+        example(5, 12)
+        example(7, 17)
+        example(21, 52)
+        example(-1, -3)
+        example(-3, -8)
+        example(-5, -13)
